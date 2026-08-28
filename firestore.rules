@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Users may manage their own profile tree (devices, friends, alerts, settings).
+    // Privileged FCM sends happen only in Cloud Functions (Admin SDK).
+    match /Users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+
+      match /Devices/{deviceId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /FriendList/{friendDoc} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+
+      match /FriendRequests/{requestId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /friendRqstSent/{requestId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /Alerts/{alertId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+
+      match /UserSettings/{settingsId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Clients can only create their own pending alert requests.
+    // They cannot mark status as sent or spoof fromUserId.
+    match /AlertRequests/{requestId} {
+      allow read: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && request.resource.data.fromUserId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.type is string
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number
+        && request.resource.data.keys().hasAll(['fromUserId', 'createdAt', 'type', 'lat', 'lng', 'status']);
+
+      allow update, delete: if false;
+    }
+  }
+}

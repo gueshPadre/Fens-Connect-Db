@@ -1,0 +1,9 @@
+functions/node_modules/
+functions/*.log
+.env
+bin/
+obj/
+.vs/
+*.suo
+[Pp]ackages/
+fens-connect-db-firebase-adminsdk-*.json
