@@ -7,3 +7,4 @@ obj/
 *.suo
 [Pp]ackages/
 fens-connect-db-firebase-adminsdk-*.json
+fens-connect-*.json

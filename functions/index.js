@@ -29,7 +29,7 @@ exports.onFriendAlertRequest = onDocumentCreated(
     const fromUserId = data.fromUserId;
     const type = data.type || "friend_sos";
     const lat = data.lat;
-      const lng = data.lng;
+    const lng = data.lng;
 
     const targetFriendId = data.targetFriendId || null;
 
@@ -76,8 +76,8 @@ exports.onFriendAlertRequest = onDocumentCreated(
           (fromProfile.get("DisplayName") || fromProfile.get("Name"))) ||
         "A friend";
 
-        const title = "FENS Friend Alert";
-        const body = `${fromName} needs help nearby at this lat: ${lat}, lng: ${lng}. Open FENS Connect.`;
+        const title = `${fromName} MAY NEED YOU`;
+        const body = `Pay Attention to them and Open FENS Connect.`;
 
       const response = await messaging.sendEachForMulticast({
         tokens,
