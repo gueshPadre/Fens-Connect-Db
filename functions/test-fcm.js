@@ -13,7 +13,7 @@ const app = initializeApp({
 
 console.log("2️⃣ Firebase app:", app.name);
 
-const deviceToken = "fSlhIIP3Q3K4Obbuxl4YcQ:APA91bH44uJHiCUq6mDr0jaBxjfkTL3iNKDQ8_MwefRsOkEp7jn5plnfC--64MwY_plq7mk1n-Jq4teU8Xt-n4TDUhkcMt8JKSMVo19hkaZuuV06wgcwxT4";
+const deviceToken = "eHsYzGq8Tii8MGvWZ9oaM7:APA91bG7hlDejuInUlcagcwikPqPa8axJ93i9Ap9JtSIYiVvW0smbZ1D-DVE_gpaOcLDNMmuHB4VaEuVA36HYMR-Bt8KV-LSzzXeXrctQymva1zbV9eYn4s";
 
 
 const title = `YOUR FRIEND MAY NEED YOU`;
@@ -25,10 +25,11 @@ const message = {
     data: {
         title,
         body,
+        fromName: "MarthaC",
         type: "friend_sos",
         fromUserId: "from_user",
-        lat: "45.52347325683222",
-        lng: "- 73.70867217238381",
+        lat: "48.43591262501287",
+        lng: "-123.36971664750212",
     }
 };
 
