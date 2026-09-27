@@ -105,6 +105,41 @@ exports.onFriendAlertRequest = onDocumentCreated(
                     { merge: true }
                 );
             }
+            else if (type == "friendRequestAccepted") {
+                const title = `${fromName} accepted your friendship!`;
+
+                const response = await messaging.sendEachForMulticast({
+                    tokens,
+                    notification: { title },
+                    data: {
+                        type: String(type),
+                        alertId: String(alertId),
+                    },
+                    android: {
+                        priority: "high",
+                        notification: {
+                            channelId: "fens_friend_alerts",
+                            priority: "high",
+                        },
+                    },
+                });
+
+                logger.info("FCM send result", {
+                    requestId,
+                    successCount: response.successCount,
+                    failureCount: response.failureCount,
+                });
+
+                await snap.ref.set(
+                    {
+                        status: response.successCount > 0 ? "sent" : "failed",
+                        sentAt: Timestamp.now(),
+                        successCount: response.successCount,
+                        failureCount: response.failureCount,
+                    },
+                    { merge: true }
+                );
+            }
             else if (type == "friend_sos") {
 
                 // CHECKS
