@@ -6,5 +6,8 @@ obj/
 .vs/
 *.suo
 [Pp]ackages/
+
+# Google Cloud service account credentials
 fens-connect-db-firebase-adminsdk-*.json
 fens-connect-*.json
+fens-connect-db-firebase-adminsdk-fbsvc-f84005c877.json
