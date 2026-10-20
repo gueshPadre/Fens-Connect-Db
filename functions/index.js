@@ -30,16 +30,13 @@ exports.onFriendAlertRequest = onDocumentCreated(
         const fromUserId = data.fromUserId;
         const type = data.type || "friend_sos";
         const alertId = data.alertId;
-        let lat;
-        let lng;
-        if (type == "friend_sos") {
-            lat = data.lat;
-            lng = data.lng;
-        }
-
-        const targetFriendId = data.targetFriendId || null;
+        let lat = data.lat || null;
+        let lng = data.lng || null;
+        const targetFriendIds = data.targetFriendIds || null;
 
         try {
+            // UNCOMMENT THIS BLOCK TO ENABLE RATE LIMITING
+
             // const allowed = await checkRateLimit(fromUserId);
             // if (!allowed) {
             //     logger.warn("Rate limit exceeded", { fromUserId, requestId });
@@ -50,11 +47,8 @@ exports.onFriendAlertRequest = onDocumentCreated(
             //     return;
             // }
 
-            const Ids = [];
-            if (targetFriendId) {
-                Ids.push(targetFriendId);
-            }
-            const tokens = await collectDeviceTokens(Ids);
+            
+            const tokens = await collectDeviceTokens(targetFriendIds);
             if (tokens.length === 0) {
                 await snap.ref.set(
                     { status: "failed", error: "no_tokens" },
@@ -141,31 +135,11 @@ exports.onFriendAlertRequest = onDocumentCreated(
                 );
             }
             else if (type == "friend_sos") {
-
                 // CHECKS
                 // if the request has proper lat and lng
                 if (!fromUserId || typeof lat !== "number" || typeof lng !== "number") {
                     await snap.ref.set(
                         { status: "failed", error: "invalid_payload" },
-                        { merge: true }
-                    );
-                    return;
-                }
-
-                // If target user is NOT part of the sender's friend list
-                const recipientIds = await resolveRecipients(fromUserId, targetFriendId);
-                if (recipientIds.length === 0) {
-                    await snap.ref.set(
-                        { status: "failed", error: "no_recipients" },
-                        { merge: true }
-                    );
-                    return;
-                }
-
-                const tokens = await collectDeviceTokens(recipientIds);
-                if (tokens.length === 0) {
-                    await snap.ref.set(
-                        { status: "failed", error: "no_tokens" },
                         { merge: true }
                     );
                     return;
@@ -210,9 +184,57 @@ exports.onFriendAlertRequest = onDocumentCreated(
                     },
                     { merge: true }
                 );
+
             }
-        } catch (err) {
-            logger.error("onFriendAlertRequest failed", err);
+            else if (type == "alone_mode") {
+                const title = `${fromName} has been alone for a while`;
+                const body = `Stay alert in case they need help!`;
+
+                // if the request has proper lat and lng
+                if (!fromUserId || typeof lat !== "number" || typeof lng !== "number") {
+                    await snap.ref.set(
+                        { status: "failed", error: "invalid_payload" },
+                        { merge: true }
+                    );
+                    return;
+                }
+
+                const response = await messaging.sendEachForMulticast({
+                    tokens,
+                    notification: { title, body },
+                    data: {
+                        type: String(type),
+                        alertId: String(alertId),
+                    },
+                    android: {
+                        priority: "high",
+                        notification: {
+                            channelId: "fens_friend_alerts",
+                            priority: "high",
+                        },
+                    },
+                });
+
+                logger.info("FCM send result", {
+                    requestId,
+                    successCount: response.successCount,
+                    failureCount: response.failureCount,
+                });
+
+                await snap.ref.set(
+                    {
+                        status: response.successCount > 0 ? "sent" : "failed",
+                        sentAt: Timestamp.now(),
+                        successCount: response.successCount,
+                        failureCount: response.failureCount,
+                    },
+                    { merge: true }
+                );
+
+            }
+        }
+        catch (err) {
+            logger.error("AlertRequest failed", err);
             await snap.ref.set(
                 { status: "failed", error: String(err && err.message ? err.message : err) },
                 { merge: true }
@@ -233,39 +255,12 @@ async function checkRateLimit(fromUserId) {
     return recent.size <= MAX_ALERTS_PER_HOUR;
 }
 
-async function resolveRecipients(fromUserId, targetFriendId) {
-    const friendSnap = await db
-        .collection("Users")
-        .doc(fromUserId)
-        .collection("FriendList")
-        .get();
-
-    const friendIds = [];
-    friendSnap.forEach((doc) => {
-        const uid = doc.get("uID");
-        if (uid) {
-            friendIds.push(String(uid));
-        }
-    });
-
-    if (targetFriendId) {
-        if (!friendIds.includes(targetFriendId)) {
-            logger.warn("targetFriendId is not a friend", {
-                fromUserId,
-                targetFriendId,
-            });
-            return [];
-        }
-        return [targetFriendId];
-    }
-
-    return friendIds;
-}
 
 async function collectDeviceTokens(userIds) {
     const tokens = new Set();
 
-    for (const userId of userIds) {
+    for (const userId of userIds ?? []) {
+
         const devices = await db
             .collection("Users")
             .doc(userId)
@@ -274,11 +269,20 @@ async function collectDeviceTokens(userIds) {
 
         devices.forEach((doc) => {
             const token = doc.get("token");
+
+            // console.log(
+            //     `Device ${doc.id}: token field exists =`,
+            //     typeof token === "string" && token.length > 0
+            // );
+
             if (token) {
                 tokens.add(String(token));
             }
         });
     }
 
+    logger.info("Total unique tokens found:", tokens.size);
+
     return Array.from(tokens);
+
 }
