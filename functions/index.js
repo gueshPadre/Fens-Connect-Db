@@ -47,7 +47,7 @@ exports.onFriendAlertRequest = onDocumentCreated(
             //     return;
             // }
 
-            
+
             const tokens = await collectDeviceTokens(targetFriendIds);
             if (tokens.length === 0) {
                 await snap.ref.set(
@@ -145,29 +145,67 @@ exports.onFriendAlertRequest = onDocumentCreated(
                     return;
                 }
 
+                const locationAllowedIds = await CheckForCloseFriends(fromUserId, targetFriendIds);
+
                 const title = `${fromName} MAY NEED YOU`;
                 const body = `Pay Attention to them and Open FENS Connect.`;
 
-                const response = await messaging.sendEachForMulticast({
-                    tokens,
-                    notification: { title, body },
-                    data: {
-                        title,
-                        body,
-                        type: String(type),
-                        fromUserId: String(fromUserId),
-                        lat: String(lat),
-                        lng: String(lng),
-                        requestId: String(requestId),
-                    },
-                    android: {
-                        priority: "high",
-                        notification: {
-                            channelId: "fens_friend_alerts",
-                            priority: "high",
-                        },
-                    },
-                });
+
+                const messages = [];
+
+                for (const recipientId of targetFriendIds) {
+
+                    const recipientTokens = await collectDeviceTokens([recipientId]);
+
+                    const canShareLoc = locationAllowedIds.has(String(recipientId));
+                    logger.info(`${recipientId} can share loc?: ${canShareLoc}`);
+
+                    for (const token of recipientTokens) {
+                        messages.push({
+                            token,
+                            notification: { title, body },
+                            data: {
+                                type: String(type),
+                                fromName: fromName,
+                                lat: canShareLoc ? String(lat) : "null",
+                                lng: canShareLoc ? String(lng) : "null",
+                                alertId: String(alertId),
+                            },
+
+                            android: {
+                                priority: "high",
+                                notification: {
+                                    channelId: "fens_friend_alerts",
+                                    priority: "high",
+                                },
+                            },
+                        });
+                    }
+                }
+
+                const response = await messaging.sendEach(messages);
+
+
+                // const response = await messaging.sendEachForMulticast({
+                //     tokens,
+                //     notification: { title, body },
+                //     data: {
+                //         title,
+                //         body,
+                //         type: String(type),
+                //         fromUserId: String(fromUserId),
+                //         lat: String(lat),
+                //         lng: String(lng),
+                //         requestId: String(requestId),
+                //     },
+                //     android: {
+                //         priority: "high",
+                //         notification: {
+                //             channelId: "fens_friend_alerts",
+                //             priority: "high",
+                //         },
+                //     },
+                // });
 
                 logger.info("FCM send result", {
                     requestId,
@@ -199,21 +237,40 @@ exports.onFriendAlertRequest = onDocumentCreated(
                     return;
                 }
 
-                const response = await messaging.sendEachForMulticast({
-                    tokens,
-                    notification: { title, body },
-                    data: {
-                        type: String(type),
-                        alertId: String(alertId),
-                    },
-                    android: {
-                        priority: "high",
-                        notification: {
-                            channelId: "fens_friend_alerts",
-                            priority: "high",
-                        },
-                    },
-                });
+                const locationAllowedIds = await CheckForCloseFriends(fromUserId, targetFriendIds);
+
+                const messages = [];
+
+                for (const recipientId of targetFriendIds) {
+
+                    const recipientTokens = await collectDeviceTokens([recipientId]);
+
+                    const canShareLoc = locationAllowedIds.has(String(recipientId));
+                    logger.info(`${recipientId} can share loc?: ${canShareLoc}`);
+
+                    for (const token of recipientTokens) {
+                        messages.push({
+                            token,
+                            notification: { title, body },
+                            data: {
+                                type: String(type),
+                                lat: canShareLoc ? String(lat) : "null",
+                                lng: canShareLoc ? String(lng) : "null",
+                                alertId: String(alertId),
+                            },
+
+                            android: {
+                                priority: "high",
+                                notification: {
+                                    channelId: "fens_friend_alerts",
+                                    priority: "high",
+                                },
+                            },
+                        });
+                    }
+                }
+
+                const response = await messaging.sendEach(messages);
 
                 logger.info("FCM send result", {
                     requestId,
@@ -284,5 +341,44 @@ async function collectDeviceTokens(userIds) {
     logger.info("Total unique tokens found:", tokens.size);
 
     return Array.from(tokens);
+}
 
+async function CheckForCloseFriends(_fromUserId, _targetFriendIds) {
+    //check if the user has enabled alerts to be sent to all friends or just close friends
+    const settings = await db
+        .collection("Users")
+        .doc(_fromUserId)
+        .collection("UserSettings")
+        .doc("GeneralSettings")
+        .get();
+
+    const locationSharedWithFriends =
+        settings.exists &&
+        settings.get("LocationSharedWithFriends") === true;
+
+    const frnds = await db
+        .collection("Users")
+        .doc(_fromUserId)
+        .collection("FriendList")
+        .get();
+
+    const locationAllowedIds = new Set();
+
+    if (locationSharedWithFriends) {
+        _targetFriendIds.forEach(id => locationAllowedIds.add(String(id)));
+    } else {
+        frnds.forEach(friendDoc => {
+            const friendUID = friendDoc.get("uID");
+
+            if (
+                friendUID &&
+                _targetFriendIds.includes(String(friendUID)) &&
+                friendDoc.get("IsCloseFriend") === true
+            ) {
+                locationAllowedIds.add(String(friendUID));
+            }
+        });
+    }
+
+    return locationAllowedIds;
 }

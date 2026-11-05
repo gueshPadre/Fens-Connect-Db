@@ -2,7 +2,7 @@
   "name": "fens-connect-functions",
   "description": "Cloud Functions for FENS Connect friend alerts via FCM",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "scripts": {
